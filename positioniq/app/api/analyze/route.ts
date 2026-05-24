@@ -1,6 +1,6 @@
 import { timingSafeEqual } from "crypto";
 import { after } from "next/server";
-import { createClient } from "@/lib/supabase/server";
+import { createClient } from "@/lib/supabase/service";
 import { runPipeline } from "@/lib/pipeline";
 import { DEMO_PROJECT_ID } from "@/lib/constants";
 
@@ -21,7 +21,7 @@ export async function POST(req: Request) {
     return Response.json({ error: "Unauthorized" }, { status: 401 });
   }
 
-  const supabase = await createClient();
+  const supabase = createClient();
 
   // BIT-51: reject if a job is already in flight
   const { data: active } = await supabase

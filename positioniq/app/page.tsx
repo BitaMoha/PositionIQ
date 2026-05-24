@@ -4,7 +4,8 @@ import { useEffect, useState, useCallback } from "react";
 import { createClient } from "@/lib/supabase/client";
 import type { NarrativeGapReport, CompetitorAnalysis, VoiceOfCustomer } from "@/lib/types";
 import { DEMO_PROJECT_ID } from "@/lib/constants";
-import { triggerAnalysis, getJobStatus } from "./actions";
+
+const API_KEY = process.env.NEXT_PUBLIC_ADMIN_SECRET ?? "";
 
 type JobStatus = "idle" | "pending" | "running" | "complete" | "error";
 
@@ -21,10 +22,10 @@ interface JobProgress {
 }
 
 const PIPELINE_STEPS = [
-  "Crawling Adyen pages",
-  "Analyzing customer sentiment",
-  "Identifying narrative gaps",
-  "Generating battlecards",
+  "Crawling Adyen website…",
+  "Analyzing G2 reviews…",
+  "Generating battlecards…",
+  "Done!",
 ];
 
 function Spinner({ className = "" }: { className?: string }) {
@@ -179,32 +180,45 @@ export default function DashboardPage() {
     setJobProgress({ current_step: null, steps_complete: 0, steps_total: 4 });
 
     try {
-      const { jobId, error } = await triggerAnalysis();
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "x-api-key": API_KEY },
+      });
+      const data = await res.json();
 
-      if (error || !jobId) {
+      if (!res.ok || !data.jobId) {
         setJobStatus("error");
-        setJobError(error ?? "Unknown error");
+        setJobError(data.error ?? "Failed to start analysis");
         return;
       }
 
+      const jobId: string = data.jobId;
       setJobStatus("running");
 
       const poll = async () => {
-        const job = await getJobStatus(jobId);
+        try {
+          const pollRes = await fetch(`/api/jobs/${jobId}`, {
+            headers: { "x-api-key": API_KEY },
+          });
+          const job = await pollRes.json();
+          const result = job.result ?? {};
 
-        setJobProgress({
-          current_step: job.current_step ?? null,
-          steps_complete: job.steps_complete ?? 0,
-          steps_total: job.steps_total ?? 4,
-        });
+          setJobProgress({
+            current_step: result.current_step ?? null,
+            steps_complete: result.steps_complete ?? 0,
+            steps_total: result.steps_total ?? 4,
+          });
 
-        if (job.status === "complete") {
-          setJobStatus("complete");
-          await fetchData();
-        } else if (job.status === "error") {
-          setJobStatus("error");
-          setJobError(job.error ?? "Pipeline failed");
-        } else {
+          if (job.status === "complete") {
+            setJobStatus("complete");
+            await fetchData();
+          } else if (job.status === "error") {
+            setJobStatus("error");
+            setJobError(job.error ?? "Pipeline failed");
+          } else {
+            setTimeout(poll, 3000);
+          }
+        } catch {
           setTimeout(poll, 3000);
         }
       };

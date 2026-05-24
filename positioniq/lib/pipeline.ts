@@ -21,20 +21,20 @@ export async function runPipeline(jobId: string) {
 
   try {
     await setStatus("running");
-    await setStep("Crawling Adyen pages…", 0, 4);
+    await setStep("Crawling Adyen website…", 0, 4);
 
     const [competitors, voc] = await Promise.all([
       runCompetitorAnalysis(DEMO_PROJECT_ID),
       (async () => {
-        await setStep("Analyzing Adyen customer sentiment…", 1, 4);
+        await setStep("Analyzing G2 reviews…", 1, 4);
         return runVocAnalysis(DEMO_PROJECT_ID);
       })(),
     ]);
 
-    await setStep("Identifying narrative gaps & building playbook…", 2, 4);
+    await setStep("Generating battlecards…", 2, 4);
     const gapReport = await runGapAnalysis(DEMO_PROJECT_ID, competitors, voc);
 
-    await setStep("Generating battlecards…", 3, 4);
+    await setStep("Done!", 3, 4);
     const competitorNames = competitors.map((c) => c.company_name);
     await Promise.all(
       competitorNames.map((name) =>

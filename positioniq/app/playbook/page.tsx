@@ -5,7 +5,8 @@ import Link from "next/link";
 import { createClient } from "@/lib/supabase/client";
 import type { NarrativeGapReport, Battlecard, PlaybookData } from "@/lib/types";
 import { DEMO_PROJECT_ID } from "@/lib/constants";
-import { triggerAnalysis, getJobStatus } from "@/app/actions";
+
+const API_KEY = process.env.NEXT_PUBLIC_ADMIN_SECRET ?? "";
 
 type RefreshStatus = "idle" | "running" | "complete" | "error";
 
@@ -82,28 +83,40 @@ export default function PlaybookPage() {
     setCurrentStep("Starting analysis…");
 
     try {
-      const { jobId, error } = await triggerAnalysis();
+      const res = await fetch("/api/analyze", {
+        method: "POST",
+        headers: { "x-api-key": API_KEY },
+      });
+      const data = await res.json();
 
-      if (error || !jobId) {
+      if (!res.ok || !data.jobId) {
         setRefreshStatus("error");
-        setRefreshError(error ?? "Unknown error");
+        setRefreshError(data.error ?? "Failed to start analysis");
         return;
       }
 
-      const poll = async () => {
-        const job = await getJobStatus(jobId);
-        if (job.current_step) {
-          setCurrentStep(job.current_step);
-        }
+      const jobId: string = data.jobId;
 
-        if (job.status === "complete") {
-          setRefreshStatus("complete");
-          setCurrentStep("");
-          await fetchData();
-        } else if (job.status === "error") {
-          setRefreshStatus("error");
-          setRefreshError(job.error ?? "Pipeline failed");
-        } else {
+      const poll = async () => {
+        try {
+          const pollRes = await fetch(`/api/jobs/${jobId}`, {
+            headers: { "x-api-key": API_KEY },
+          });
+          const job = await pollRes.json();
+          const step = job.result?.current_step;
+          if (step) setCurrentStep(step);
+
+          if (job.status === "complete") {
+            setRefreshStatus("complete");
+            setCurrentStep("");
+            await fetchData();
+          } else if (job.status === "error") {
+            setRefreshStatus("error");
+            setRefreshError(job.error ?? "Pipeline failed");
+          } else {
+            setTimeout(poll, 3000);
+          }
+        } catch {
           setTimeout(poll, 3000);
         }
       };
