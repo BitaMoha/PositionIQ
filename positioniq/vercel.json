@@ -1,0 +1,7 @@
+{
+  "framework": "nextjs",
+  "functions": {
+    "app/api/analyze/route.ts": { "maxDuration": 300 },
+    "app/api/jobs/[id]/route.ts": { "maxDuration": 10 }
+  }
+}
